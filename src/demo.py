@@ -6,6 +6,7 @@ import _init_paths
 
 import os
 import cv2
+import argparse
 
 from opts import opts
 from detectors.detector_factory import detector_factory
@@ -20,14 +21,26 @@ def demo(opt):
   Detector = detector_factory[opt.task]
   detector = Detector(opt)
 
+  show_win_name = 'input'
+  cv2.namedWindow(show_win_name, cv2.WINDOW_NORMAL)
+
   if opt.demo == 'webcam' or \
     opt.demo[opt.demo.rfind('.') + 1:].lower() in video_ext:
     cam = cv2.VideoCapture(0 if opt.demo == 'webcam' else opt.demo)
     detector.pause = False
     while True:
-        _, img = cam.read()
-        cv2.imshow('input', img)
-        ret = detector.run(img)
+        status, img = cam.read()
+        if not status:
+          break
+        cv2.imshow(show_win_name, img)
+
+        disp_class = []
+        if opt.disp_classes:
+          classes = opt.disp_classes.split(',')
+          for class_name in classes:
+            disp_class.append(class_name.strip())
+
+        ret = detector.run_with_classes(img, classes=disp_class)
         time_str = ''
         for stat in time_stats:
           time_str = time_str + '{} {:.3f}s |'.format(stat, ret[stat])
@@ -51,6 +64,7 @@ def demo(opt):
       for stat in time_stats:
         time_str = time_str + '{} {:.3f}s |'.format(stat, ret[stat])
       print(time_str)
+
 if __name__ == '__main__':
   opt = opts().init()
   demo(opt)

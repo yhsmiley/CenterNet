@@ -7,7 +7,7 @@ import numpy as np
 import cv2
 import sys
 import time
-from utils.debugger import Debugger
+from ctnet_utils.debugger import Debugger
 from models.data_parallel import DataParallel
 from models.losses import FocalLoss, RegL1Loss
 from models.decode import agnex_ct_decode, exct_decode

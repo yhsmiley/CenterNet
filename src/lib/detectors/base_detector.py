@@ -9,8 +9,8 @@ import time
 import torch
 
 from models.model import create_model, load_model
-from utils.image import get_affine_transform
-from utils.debugger import Debugger
+from ctnet_utils.image import get_affine_transform
+from ctnet_utils.debugger import Debugger
 
 
 class BaseDetector(object):
@@ -137,6 +137,141 @@ class BaseDetector(object):
     tot_time += end_time - start_time
 
     if self.opt.debug >= 1:
+      self.show_results(debugger, image, results)
+    
+    return {'results': results, 'tot': tot_time, 'load': load_time,
+            'pre': pre_time, 'net': net_time, 'dec': dec_time,
+            'post': post_time, 'merge': merge_time}
+
+  def run_reid(self, image_or_path_or_tensor, meta=None, classes=None):
+    image = image_or_path_or_tensor
+    
+    detections = []
+    for scale in self.scales:
+      images, meta = self.pre_process(image, scale, meta)
+      images = images.to(self.opt.device)
+      
+      # output: {'hm': tensor, 'wh': tensor, 'reg': tensor}
+      # dets: tensor (6 values each --> bboxes, scores, classes)
+      output, dets = self.process(images)
+
+      # dets post processed: {1: array, 2: array ...} (each 5 values)
+      dets = self.post_process(dets, meta, scale)
+      detections.append(dets)
+    
+    # results: {1: array, 2: array ...}
+    results = self.merge_outputs(detections)
+
+    debugger = Debugger(dataset=self.opt.dataset)
+
+    bbs = []
+    # find bboxes for each class (each 5 values)
+    # j represents class index
+    if classes is None:
+      for j in range(1, self.num_classes + 1):
+        bbs = self.get_bbs(debugger, results, bbs, j - 1)
+
+    else:
+      for find_class in classes:
+        class_idx = debugger.names.index(find_class)
+        bbs = self.get_bbs(debugger, results, bbs, class_idx)
+
+    return bbs
+
+  def get_bbs(self, debugger, results, bbs, class_idx):
+    # debugger.names[j - 1] gives label name
+    label = debugger.names[int(class_idx)]
+    for bbox in results[class_idx + 1]:
+      # bbox[0] is x1
+      # bbox[1] is y1
+      # bbox[2] is x2
+      # bbox[3] is y2
+      # bbox[4] is confidence score
+    
+      if bbox[4] > self.opt.vis_thresh:
+        if int(bbox[0]) < 0:
+          left = 0
+        else:
+          left = int(bbox[0])
+        if int(bbox[1]) < 0:
+          top = 0
+        else:
+          top = int(bbox[1])
+        right = int(bbox[2])
+        bot = int(bbox[3])
+        width = int(right - left)
+        height = int(bot - top)
+        score = bbox[4]
+
+        bbs.append( {'label':label,'confidence':score,'t':top,'l':left,'b':bot,'r':right,'w':width,'h':height} )
+
+    return bbs
+
+  def run_with_classes(self, image_or_path_or_tensor, meta=None, classes=None):
+    load_time, pre_time, net_time, dec_time, post_time = 0, 0, 0, 0, 0
+    merge_time, tot_time = 0, 0
+    debugger = Debugger(dataset=self.opt.dataset, ipynb=(self.opt.debug==3),
+                        theme=self.opt.debugger_theme)
+    start_time = time.time()
+    pre_processed = False
+    if isinstance(image_or_path_or_tensor, np.ndarray):
+      image = image_or_path_or_tensor
+    elif type(image_or_path_or_tensor) == type (''): 
+      image = cv2.imread(image_or_path_or_tensor)
+    else:
+      image = image_or_path_or_tensor['image'][0].numpy()
+      pre_processed_images = image_or_path_or_tensor
+      pre_processed = True
+    
+    loaded_time = time.time()
+    load_time += (loaded_time - start_time)
+    
+    detections = []
+    for scale in self.scales:
+      scale_start_time = time.time()
+      if not pre_processed:
+        images, meta = self.pre_process(image, scale, meta)
+      else:
+        # import pdb; pdb.set_trace()
+        images = pre_processed_images['images'][scale][0]
+        meta = pre_processed_images['meta'][scale]
+        meta = {k: v.numpy()[0] for k, v in meta.items()}
+      images = images.to(self.opt.device)
+      torch.cuda.synchronize()
+      pre_process_time = time.time()
+      pre_time += pre_process_time - scale_start_time
+      
+      output, dets, forward_time = self.process(images, return_time=True)
+
+      torch.cuda.synchronize()
+      net_time += forward_time - pre_process_time
+      decode_time = time.time()
+      dec_time += decode_time - forward_time
+      
+      if self.opt.debug >= 2:
+        self.debug(debugger, images, dets, output, scale)
+      
+      dets = self.post_process(dets, meta, scale)
+      torch.cuda.synchronize()
+      post_process_time = time.time()
+      post_time += post_process_time - decode_time
+
+      detections.append(dets)
+    
+    results = self.merge_outputs(detections)
+    torch.cuda.synchronize()
+    end_time = time.time()
+    merge_time += end_time - post_process_time
+    tot_time += end_time - start_time
+
+    if self.opt.debug >= 1:
+      if classes:
+        for j in range(1, self.num_classes + 1):
+          label = debugger.names[int(j-1)]
+          if label not in classes:
+            for bbox in results[j]:
+              bbox[4] = 0
+
       self.show_results(debugger, image, results)
     
     return {'results': results, 'tot': tot_time, 'load': load_time,

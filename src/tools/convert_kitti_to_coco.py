@@ -12,8 +12,8 @@ DEBUG = False
 import os
 SPLITS = ['3dop', 'subcnn'] 
 import _init_paths
-from utils.ddd_utils import compute_box_3d, project_to_image, alpha2rot_y
-from utils.ddd_utils import draw_box_3d, unproject_2d_to_3d
+from ctnet_utils.ddd_utils import compute_box_3d, project_to_image, alpha2rot_y
+from ctnet_utils.ddd_utils import draw_box_3d, unproject_2d_to_3d
 
 '''
 #Values    Name      Description

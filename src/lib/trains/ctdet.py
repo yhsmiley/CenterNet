@@ -9,9 +9,9 @@ from models.losses import FocalLoss
 from models.losses import RegL1Loss, RegLoss, NormRegL1Loss, RegWeightedL1Loss
 from models.decode import ctdet_decode
 from models.utils import _sigmoid
-from utils.debugger import Debugger
-from utils.post_process import ctdet_post_process
-from utils.oracle_utils import gen_oracle_map
+from ctnet_utils.debugger import Debugger
+from ctnet_utils.post_process import ctdet_post_process
+from ctnet_utils.oracle_utils import gen_oracle_map
 from .base_trainer import BaseTrainer
 
 class CtdetLoss(torch.nn.Module):

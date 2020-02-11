@@ -15,9 +15,9 @@ except:
         ' do \n cd $CenterNet_ROOT/src/lib/external \n make')
 from models.decode import ctdet_decode
 from models.utils import flip_tensor
-from utils.image import get_affine_transform
-from utils.post_process import ctdet_post_process
-from utils.debugger import Debugger
+from ctnet_utils.image import get_affine_transform
+from ctnet_utils.post_process import ctdet_post_process
+from ctnet_utils.debugger import Debugger
 
 from .base_detector import BaseDetector
 
@@ -89,8 +89,18 @@ class CtdetDetector(BaseDetector):
 
   def show_results(self, debugger, image, results):
     debugger.add_img(image, img_id='ctdet')
+    # find bboxes for each class (each 5 values)
     for j in range(1, self.num_classes + 1):
+      # j represents class index
+      # print('j: {}'.format(j))
       for bbox in results[j]:
+        # print('bbox: {}'.format(bbox))
+        # bbox[0] is x1
+        # bbox[1] is y1
+        # bbox[2] is x2
+        # bbox[3] is y2
+        # bbox[4] is confidence score
+        # debugger.names[j - 1] gives label name
         if bbox[4] > self.opt.vis_thresh:
           debugger.add_coco_bbox(bbox[:4], j - 1, bbox[4], img_id='ctdet')
     debugger.show_all_imgs(pause=self.pause)

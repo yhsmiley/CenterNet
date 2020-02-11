@@ -15,7 +15,7 @@ import torch
 from external.nms import soft_nms
 from opts import opts
 from logger import Logger
-from utils.utils import AverageMeter
+from ctnet_utils.utils import AverageMeter
 from datasets.dataset_factory import dataset_factory
 from detectors.detector_factory import detector_factory
 
